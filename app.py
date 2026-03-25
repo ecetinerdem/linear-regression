@@ -14,7 +14,13 @@ from sklearn.preprocessing import StandardScaler
 CONFIG = {
     "default_csv": "house_data.csv",
     "test_size": 0.2,
-    "random_state": 42 # Answer to life, universe and everything :)
+    "random_state": 42, # Answer to life, universe and everything :)
+    "figure_size": (10, 6),
+    "point_color": "blue",
+    "line_color": "red",
+    "grid_alpha": 0.3,
+    "output_image": "housing_regression.png",
+    "line_width": 2
 }
 
 logging.basicConfig(
@@ -31,6 +37,11 @@ def parse_arguments():
         type=str,
         default=CONFIG["default_csv"],
         help=f'Path to CSV file (default: {CONFIG["default_csv"]})'
+    )
+    parser.add_argument(
+        "--no_plot",
+        action="store_true",
+        help= "Do not display plot (still saves to file)"
     )
     return parser.parse_args()
 
@@ -112,6 +123,8 @@ def evaluate_model(model, X, y, scaler):
 def print_results(X_train, y_train, X_test, y_test, train_predictions, test_predictions, model, scaler):
     slope = model.coef_[0] / scaler.scale_[0]
     intercept = model.intercept_ - (model.coef_[0] * scaler.mean_[0] / scaler.scale_[0])
+
+
     r_squared_train = r2_score(y_train, train_predictions)
     r_squared_test = r2_score(y_test, test_predictions)
     rmse_train = np.sqrt(mean_squared_error(y_train, train_predictions))
@@ -140,6 +153,59 @@ def print_results(X_train, y_train, X_test, y_test, train_predictions, test_pred
    
     print("\nTest Prediction Sample (first 5 rows)")
     print(test_df.head().to_string(index=False))
+
+
+def create_visualization(X_train, y_train, X_test, y_test, train_predictions, test_predictions, model, scaler, output_file, show_plot=True):
+    plt.figure(figsize=CONFIG["figure_size"])
+    # Plot training data
+    plt.scatter(X_train, y_train, color=CONFIG["point_color"], alpha=0.7, label="Training data")
+    plt.scatter(X_test, y_test, color="green", alpha=0.7, label= "Test data")
+
+    x_range = np.linspace(
+        min(X_train.min(), X_test.min()),
+        max(X_train.max(), X_test.max()),
+        100 # 100 points for smooth line
+    ).reshape(-1, 1)
+
+    # Scale the range and predict corresponding y-values
+    X_range_scaled = scaler.transform(x_range)
+    y_range_predictions = model.predict(X_range_scaled)
+
+
+    # Plot the regression line
+    plt.plot(x_range, y_range_predictions, color=CONFIG["line_color"], linewidth=CONFIG["line_width"], label="Regression line")
+
+    # Add labels and title
+    plt.xlabel("Square Footage")
+    plt.ylabel("Price (thousands $)")
+    plt.title("Liner Regression: Housing Price vs Square Footage")
+    plt.legend()
+    plt.grid(True, alpha=CONFIG["grid_alpha"])
+
+    # Calculate and display model parameter
+    slope = model.coef_[0] / scaler.scale_[0]
+    intercept = model.intercept_ - (model.coef_[0] * scaler.mean_[0] / scaler.scale_[0])
+
+    r_squared_train = r2_score(y_train, train_predictions)
+    r_squared_test = r2_score(y_test, test_predictions)
+
+    # Format text to display on plot
+    formula_text = f"Price = {slope:.4f} x Square Footage + {intercept:.4f}"
+    r2_train_text = f"R2 (train): {r_squared_train:.4f}"
+    r2_test_text = f"R2 (test): {r_squared_test:.4f}"
+
+    plt.figtext(0.15, 0.85, formula_text, fontsize=12)
+    plt.figtext(0.15, 0.82, r2_train_text, fontsize=12)
+    plt.figtext(0.15, 0.79, r2_test_text, fontsize=12)
+
+    plt.savefig(output_file)
+    logger.info(f"Plot saved as {output_file}")
+
+    if show_plot:
+        plt.show()
+
+    plt.close()
+
 
 
 def main():
@@ -177,7 +243,7 @@ def main():
     print_results(X_train, y_train, X_test, y_test, train_predictions , test_predictions, model, scaler)
 
     #Create a visualization
-    
+    create_visualization(X_train, y_train, X_test, y_test, train_predictions, test_predictions, model, scaler, CONFIG["output_image"], not args.no_plot)
     #Predict price for houses not in our dataset
 
 if __name__ == "__main__":
